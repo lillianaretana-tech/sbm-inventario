@@ -194,15 +194,15 @@ const SUPA_URL = 'https://exuhbfsasoboxmksomar.supabase.co';
 const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV4dWhiZnNhc29ib3hta3NvbWFyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk4Mjk4NjYsImV4cCI6MjA5NTQwNTg2Nn0.Ao8l3NUkHxiDwWmK-GMpsBHgoQalFemb4Lf08yIyz4I';
 
 async function sb(path, opts={}) {
+  const {prefer, headers: extraHeaders, ...fetchOpts} = opts;
   const res = await fetch(SUPA_URL + '/rest/v1/' + path, {
+    ...fetchOpts,
     headers: {
       'apikey': SUPA_KEY,
       'Authorization': 'Bearer ' + SUPA_KEY,
       'Content-Type': 'application/json',
-      'Prefer': opts.prefer || 'return=representation',
-      ...opts.headers
-    },
-    ...opts
+      'Prefer': prefer || (extraHeaders && extraHeaders['Prefer']) || 'return=representation',
+    }
   });
   if (!res.ok) {
     const err = await res.text();
@@ -394,8 +394,7 @@ async function registerMovements() {
     await sb('stock', {
       method: 'POST',
       body: JSON.stringify(stockUpdates),
-      prefer: 'resolution=merge-duplicates',
-      headers: {'Prefer': 'resolution=merge-duplicates'}
+      prefer: 'resolution=merge-duplicates'
     });
     stock[AP] = ns;
     MI = {};
@@ -463,7 +462,7 @@ async function saveAdj() {
   }
   if (!updates.length) return;
   try {
-    await sb('stock', {method:'POST', body:JSON.stringify(updates), headers:{'Prefer':'resolution=merge-duplicates'}});
+    await sb('stock', {method:'POST', body:JSON.stringify(updates), prefer:'resolution=merge-duplicates'});
     stock[AP] = ns;
     SA = false; AI = {};
     renderInv();
