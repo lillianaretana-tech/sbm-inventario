@@ -23,16 +23,16 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 /* PROJECT HEADER */
 .proj-header{background:#1e2537;border-bottom:1px solid #334155;padding:12px 16px;position:sticky;top:0;z-index:30;display:flex;align-items:center;gap:10px}
-.back-btn{background:none;border:none;cursor:pointer;color:#6b7280;font-size:20px;line-height:1;padding:2px 4px}
+.back-btn{background:none;border:none;cursor:pointer;color:#94a3b8;font-size:20px;line-height:1;padding:2px 4px}
 .back-btn:hover{color:#374151}
 .proj-header-name{font-weight:600;font-size:15px;color:#f1f5f9}
-.header-month{margin-left:auto;font-size:12px;color:#64748b}
+.header-month{margin-left:auto;font-size:12px;color:#94a3b8}
 .header-actions{display:flex;gap:8px;margin-left:8px}
 
 /* TABS */
 .tabs-wrap{background:#1e2537;border-bottom:1px solid #334155;position:sticky;top:49px;z-index:29;overflow-x:auto}
 .tabs{display:flex;min-width:max-content}
-.tab-btn{padding:10px 16px;font-size:13px;font-weight:400;border:none;background:none;cursor:pointer;color:#94a3b8;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s}
+.tab-btn{padding:10px 16px;font-size:13px;font-weight:400;border:none;background:none;cursor:pointer;color:#cbd5e1;border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s}
 .tab-btn.active{color:#2563eb;border-bottom-color:#2563eb;font-weight:500}
 
 /* FEEDBACK */
@@ -49,7 +49,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 
 /* FORM */
 .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.field label{display:block;font-size:11px;font-weight:600;color:#6b7280;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
+.field label{display:block;font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase;letter-spacing:.04em}
 .field input,.field select{width:100%;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:13px;background:#0f172a;color:#f1f5f9;transition:border-color .15s}
 .field input:focus,.field select:focus{outline:none;border-color:#2563eb}
 
@@ -60,8 +60,8 @@ th.tc{text-align:center}
 td{padding:8px 12px;border-top:1px solid #1e293b;vertical-align:middle}
 td.tc{text-align:center}
 tr:hover td{background:#0f172a}
-.pname{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;font-size:13px;color:#e2e8f0}
-.psub{font-size:11px;color:#64748b}
+.pname{max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:block;font-size:13px;color:#f8fafc}
+.psub{font-size:11px;color:#94a3b8}
 
 /* BADGES */
 .badge{display:inline-block;padding:3px 9px;border-radius:999px;font-size:11px;font-weight:600}
@@ -431,7 +431,7 @@ function renderInv() {
     return `<tr>
       <td><span class="pname" title="${p.name}">${p.name}</span><span class="psub">${p.unit}</span></td>
       <td class="tc" style="font-weight:600">${s}</td>
-      <td class="tc" style="color:#6b7280">${p.expected_monthly}</td>
+      <td class="tc" style="color:#e2e8f0">${p.expected_monthly}</td>
       <td class="tc"><span class="badge ${st.c}">${st.l}</span></td>
     </tr>`;
   }).join('');
@@ -556,7 +556,7 @@ async function renderHis() {
               return `<tr>
                 <td><span class="badge ${m.type==='entrada'?'badge-in':'badge-out'}">${m.type==='entrada'?'+':'-'}${m.qty}</span></td>
                 <td><span class="pname" title="${p?.name||m.product_id}">${p?.name||m.product_id}</span></td>
-                <td style="color:#6b7280;white-space:nowrap">${m.date}</td>
+                <td style="color:#94a3b8;white-space:nowrap">${m.date}</td>
                 <td style="color:#6b7280">${m.responsable||''}</td>
               </tr>`;
             }).join('')}
@@ -603,7 +603,7 @@ function renderCfg() {
               ${prods.map(p => `<tr>
                 <td><span class="pname" title="${p.name}">${p.name}</span></td>
                 <td class="tc" style="color:#6b7280">${p.unit}</td>
-                <td class="tc" style="color:#6b7280">${p.expected_monthly}</td>
+                <td class="tc" style="color:#e2e8f0">${p.expected_monthly}</td>
                 <td class="tc"><button class="btn btn-sm btn-danger" onclick="deleteProduct('${p.id}')">🗑</button></td>
               </tr>`).join('')}
             </tbody>
@@ -645,6 +645,7 @@ async function exportExcel() {
   const wb = XLSX.utils.book_new();
   const stk = stock[AP] || {};
   const prods = products[AP] || [];
+  const firstDay = `${CY}-${String(CM+1).padStart(2,'0')}-01`;
 
   // Hoja 1: Stock actual
   const invData = [['Producto','Unidad','Stock Actual','Consumo Mensual Esperado','Estado']];
@@ -654,34 +655,48 @@ async function exportExcel() {
     const st = r <= 0.2 ? 'Crítico' : r <= 0.5 ? 'Bajo' : 'OK';
     invData.push([p.name, p.unit, s, p.expected_monthly, st]);
   });
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(invData), 'Stock Actual');
+  const wsInv = XLSX.utils.aoa_to_sheet(invData);
+  wsInv['!cols'] = [{wch:50},{wch:10},{wch:14},{wch:24},{wch:10}];
+  XLSX.utils.book_append_sheet(wb, wsInv, 'Stock Actual');
 
-  // Hoja 2: Movimientos del mes
+  // Hoja 2: Movimientos detallados del mes
   try {
-    const firstDay = `${CY}-${String(CM+1).padStart(2,'0')}-01`;
-    const movs = await sGet('movements', `project_id=eq.${AP}&date=gte.${firstDay}&order=date`);
-    const movData = [['Fecha','Tipo','Producto','Cantidad','Responsable']];
+    const movs = await sGet('movements', `project_id=eq.${AP}&date=gte.${firstDay}&order=date,created_at`);
+    const movData = [['Fecha','Día','Tipo','Producto','Unidad','Cantidad','Responsable']];
     movs.forEach(m => {
       const p = prods.find(x => x.id === m.product_id);
-      movData.push([m.date, m.type, p?.name||m.product_id, m.qty, m.responsable||'']);
+      const d = new Date(m.date);
+      const dias = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+      movData.push([
+        m.date,
+        dias[d.getDay()],
+        m.type === 'entrada' ? 'Entrada' : 'Salida',
+        p?.name || m.product_id,
+        p?.unit || '',
+        parseFloat(m.qty),
+        m.responsable || ''
+      ]);
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(movData), 'Movimientos ' + MONTHS[CM]);
+    const wsMov = XLSX.utils.aoa_to_sheet(movData);
+    wsMov['!cols'] = [{wch:12},{wch:6},{wch:10},{wch:50},{wch:8},{wch:10},{wch:18}];
+    XLSX.utils.book_append_sheet(wb, wsMov, 'Movimientos ' + MONTHS[CM]);
   } catch(e) {}
 
   // Hoja 3: Pedido sugerido
   try {
-    const firstDay = `${CY}-${String(CM+1).padStart(2,'0')}-01`;
     const movs = await sGet('movements', `project_id=eq.${AP}&type=eq.salida&date=gte.${firstDay}`);
-    const pedData = [['Producto','Unidad','Stock Actual','Consumido en el Mes','Pedido Sugerido']];
+    const pedData = [['Producto','Unidad','Stock Actual','Consumido en el Mes','Consumo Proyectado','Pedido Sugerido']];
     prods.forEach(p => {
       const sal = movs.filter(m => m.product_id === p.id).reduce((a,m) => a+parseFloat(m.qty), 0);
-      const proj = CD >= 7 ? Math.ceil(sal*30/CD) : p.expected_monthly;
-      const tgt = Math.max(proj, p.expected_monthly||0);
+      const proj2 = CD >= 7 ? Math.ceil(sal*30/CD) : p.expected_monthly;
+      const tgt = Math.max(proj2, p.expected_monthly||0);
       const cur = stk[p.id] ?? 0;
       const sug = Math.max(0, Math.ceil(tgt*1.2) - cur);
-      if (sug > 0) pedData.push([p.name, p.unit, cur, sal, sug]);
+      if (sug > 0) pedData.push([p.name, p.unit, cur, sal, proj2, sug]);
     });
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(pedData), 'Pedido ' + MONTHS[(CM+1)%12]);
+        const wsPed = XLSX.utils.aoa_to_sheet(pedData);
+    wsPed['!cols'] = [{wch:50},{wch:8},{wch:14},{wch:18},{wch:20},{wch:16}];
+    XLSX.utils.book_append_sheet(wb, wsPed, 'Pedido ' + MONTHS[(CM+1)%12]);
   } catch(e) {}
 
   XLSX.writeFile(wb, `Inventario_${proj.name}_${MONTHS[CM]}_${CY}.xlsx`);
