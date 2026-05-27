@@ -88,8 +88,6 @@ tr:hover td{background:#0f172a}
 .btn-full{width:100%;padding:11px}
 .btn-row{display:flex;gap:8px;margin-top:12px}
 .btn-row .btn{flex:1}
-.report-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-.report-actions .btn{flex:1;min-width:130px}
 
 /* SECTION HEADER */
 .sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
@@ -166,7 +164,7 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
     <span id="hdr-month" class="header-month"></span>
     <div class="header-actions no-print">
       <button class="btn btn-sm" onclick="exportExcel()" title="Exportar Excel">📊 Excel</button>
-      <button class="btn btn-sm" onclick="printView()" title="PDF / Imprimir">📄 PDF</button>
+      <button class="btn btn-sm" onclick="printView()" title="Imprimir">🖨️ Imprimir</button>
     </div>
   </div>
 
@@ -175,6 +173,7 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
       <button class="tab-btn active" data-t="mov">Movimientos</button>
       <button class="tab-btn" data-t="inv">Inventario</button>
       <button class="tab-btn" data-t="ped" id="ped-tab">Pedido</button>
+      <button class="tab-btn" data-t="cnt">Conteo Foto</button>
       <button class="tab-btn" data-t="his">Historial</button>
       <button class="tab-btn" data-t="cfg">Config</button>
     </div>
@@ -185,6 +184,7 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
     <div id="t-mov" class="tab-pane"></div>
     <div id="t-inv" class="tab-pane" style="display:none"></div>
     <div id="t-ped" class="tab-pane" style="display:none"></div>
+    <div id="t-cnt" class="tab-pane" style="display:none"></div>
     <div id="t-his" class="tab-pane" style="display:none"></div>
     <div id="t-cfg" class="tab-pane" style="display:none"></div>
   </div>
@@ -229,6 +229,39 @@ let projects = [], products = {}, stock = {};
 let AP = null, AT = 'mov';
 let MI = {}, MD = TODAY, MR = '';
 let SA = false, AI = {}, SAP = false, NP = {name:'',unit:'PQT',em:''};
+let CV = {}, CV_NOTE = '';
+
+
+// Conteo visual estimado desde fotos de bodega Uber Bambú.
+// Sirve como punto de partida: la persona encargada puede corregir cantidades antes de aplicar al stock.
+const VISUAL_COUNT_PRESET = [
+  {name:'Toallas de mano Tork H1', qty:3, unit:'cajas', confidence:'Alta'},
+  {name:'Kleenex Professional', qty:2, unit:'cajas', confidence:'Alta'},
+  {name:'Lysol wipes desinfectantes', qty:7, unit:'unidades', confidence:'Media'},
+  {name:'Hostess Twinkies', qty:1, unit:'caja', confidence:'Media'},
+  {name:'Hostess Cupcakes chocolate', qty:1, unit:'caja', confidence:'Media'},
+  {name:'Coca Cola mini', qty:2, unit:'paquetes', confidence:'Media'},
+  {name:'Sprite mini', qty:2, unit:'unidades visibles', confidence:'Media'},
+  {name:'Fanta mini', qty:2, unit:'unidades visibles', confidence:'Media'},
+  {name:'Frescoleche vainilla', qty:9, unit:'unidades visibles', confidence:'Media'},
+  {name:'Frescoleche chocolate', qty:8, unit:'unidades visibles', confidence:'Media'},
+  {name:'Jugos Dos Pinos néctar - Manzana', qty:2, unit:'unidades visibles', confidence:'Media'},
+  {name:'Jugos Dos Pinos néctar - Pera', qty:2, unit:'unidades visibles', confidence:'Media'},
+  {name:'Jugos Dos Pinos néctar - Melocotón', qty:2, unit:'unidades visibles', confidence:'Media'},
+  {name:'Jugos Del Valle - Sabores surtidos', qty:6, unit:'unidades visibles', confidence:'Media'},
+  {name:'Nature Valley Protein Chewy Bar', qty:1, unit:'caja', confidence:'Alta'},
+  {name:'Nature Valley Chewy Fruit & Nut', qty:1, unit:'caja', confidence:'Alta'},
+  {name:'NutriSnacks salados surtidos', qty:1, unit:'caja', confidence:'Alta'},
+  {name:'ACT II Butter Lovers popcorn', qty:3, unit:'cajas', confidence:'Media'},
+  {name:'Planters - Maní salado', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
+  {name:'Planters - Maní honey roasted', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
+  {name:'Planters - Cashews', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
+  {name:'Pistachios Wonderful roasted & salted', qty:3, unit:'cajas', confidence:'Alta'},
+  {name:'Snack Cups - Original', qty:2, unit:'cajas surtidas', confidence:'Media'},
+  {name:'Snack Cups - Sour Cream & Onion', qty:2, unit:'cajas surtidas', confidence:'Media'},
+  {name:'Snack Cups - Cheddar Cheese', qty:2, unit:'cajas surtidas', confidence:'Media'},
+  {name:'Marshmallows mini multicolor', qty:1, unit:'bolsa grande', confidence:'Alta'}
+];
 
 // ─── INIT ──────────────────────────────────────────────────────────
 async function init() {
@@ -300,6 +333,7 @@ function showTab(t) {
   if (t === 'mov') renderMov();
   else if (t === 'inv') renderInv();
   else if (t === 'ped') renderPed();
+  else if (t === 'cnt') renderCnt();
   else if (t === 'his') renderHis();
   else if (t === 'cfg') renderCfg();
 }
@@ -440,10 +474,6 @@ function renderInv() {
 
   el.innerHTML = `
     <div class="print-title" id="print-inv-title"></div>
-    <div class="report-actions no-print">
-      <button class="btn btn-primary" onclick="exportExcel()">📊 Exportar Excel</button>
-      <button class="btn" onclick="printView()">📄 Generar PDF</button>
-    </div>
     <div class="sec-hdr no-print">
       <h3>Stock Actual</h3>
       <button class="btn btn-sm" onclick="SA=true;AI={};renderInv()">✏️ Ajustar stock</button>
@@ -501,10 +531,6 @@ async function renderPed() {
 
     el.innerHTML = `
       <div class="print-title" id="print-ped-title"></div>
-      <div class="report-actions no-print">
-        <button class="btn btn-primary" onclick="exportExcel()">📊 Exportar Excel</button>
-        <button class="btn" onclick="printView()">📄 Generar PDF</button>
-      </div>
       <div class="info-box">
         <b>📦 Pedido sugerido — ${nm} ${CY}</b><br>
         <span style="font-size:12px;opacity:.85">Consumo de ${MONTHS[CM]} (día ${CD}/30) · Stock de seguridad 20%</span>
@@ -543,6 +569,137 @@ async function renderPed() {
     el.innerHTML = `<div class="loading">⚠️ Error cargando datos: ${e.message}</div>`;
   }
 }
+
+
+// ─── CONTEO POR FOTO / CONTEO VISUAL ───────────────────────────────
+function renderCnt() {
+  const el = document.getElementById('t-cnt');
+  const prods = getProds();
+  if (!prods.length) {
+    el.innerHTML = `<div class="loading">No hay productos configurados para conteo visual.</div>`;
+    return;
+  }
+
+  const rows = prods.map(p => {
+    const cur = getStock(p.id);
+    const val = CV[p.id] ?? '';
+    return `<tr>
+      <td><span class="pname" title="${p.name}">${p.name}</span><span class="psub">${p.unit}</span></td>
+      <td class="tc" style="font-weight:600">${cur}</td>
+      <td class="tc"><input class="ni" type="number" min="0" step="1" value="${val}" placeholder="0" oninput="CV['${p.id}']=this.value"></td>
+      <td class="tc" id="cv-diff-${p.id}">${val === '' ? '<span style="color:#64748b">—</span>' : diffHtml(cur, val)}</td>
+    </tr>`;
+  }).join('');
+
+  el.innerHTML = `
+    <div class="info-box">
+      <b>📸 Conteo por foto / conteo visual</b><br>
+      <span style="font-size:12px;opacity:.9">
+        Usá esta pantalla para cargar el conteo estimado desde fotos. La IA puede sugerir cantidades, la funcionaria las corrige y luego se aplican como stock físico actual.
+      </span>
+    </div>
+    <div class="card card-pad no-print">
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn btn-primary" onclick="loadVisualPreset()">Cargar conteo estimado</button>
+        <button class="btn" onclick="clearVisualCount()">Limpiar conteo</button>
+        <button class="btn" onclick="exportVisualCountExcel()">Excel conteo</button>
+      </div>
+      <div style="margin-top:12px">
+        <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase">Observaciones del conteo</label>
+        <input class="input-full" placeholder="Ej: Conteo estimado por fotos de bodega; pendiente validar productos abiertos." value="${CV_NOTE}" oninput="CV_NOTE=this.value">
+      </div>
+    </div>
+    <div class="card" style="overflow-x:auto">
+      <table>
+        <thead><tr>
+          <th>Producto</th>
+          <th class="tc">Stock actual</th>
+          <th class="tc">Conteo físico</th>
+          <th class="tc">Diferencia</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+    <button class="btn btn-primary btn-full no-print" onclick="applyVisualCount()">✓ Aplicar conteo al stock</button>`;
+}
+
+function diffHtml(cur, val) {
+  const n = parseFloat(val);
+  if (isNaN(n)) return '<span style="color:#64748b">—</span>';
+  const d = n - cur;
+  if (d > 0) return `<span class="ns-pos">+${d}</span>`;
+  if (d < 0) return `<span class="ns-neg">${d}</span>`;
+  return '<span style="color:#86efac">0</span>';
+}
+
+function loadVisualPreset() {
+  if (!AP) return;
+  const prods = getProds();
+  const byName = {};
+  prods.forEach(p => byName[normalizeName(p.name)] = p);
+
+  VISUAL_COUNT_PRESET.forEach(row => {
+    const p = byName[normalizeName(row.name)];
+    if (p) CV[p.id] = row.qty;
+  });
+
+  CV_NOTE = 'Conteo visual estimado por fotos de bodega. Validar productos parcialmente abiertos o unidades ocultas antes de enviar reporte final.';
+  renderCnt();
+  showFbk('✅ Conteo estimado cargado. Revisá y corregí antes de aplicar.', 'ok');
+}
+
+function clearVisualCount() {
+  if (!confirm('¿Limpiar el conteo visual cargado?')) return;
+  CV = {};
+  CV_NOTE = '';
+  renderCnt();
+}
+
+async function applyVisualCount() {
+  const updates = [];
+  const ns = {...(stock[AP] || {})};
+  Object.entries(CV).forEach(([pid, val]) => {
+    const n = parseFloat(val);
+    if (!isNaN(n) && n >= 0) {
+      ns[pid] = n;
+      updates.push({project_id: AP, product_id: pid, qty: n});
+    }
+  });
+
+  if (!updates.length) {
+    showFbk('⚠️ No hay cantidades válidas para aplicar.', 'warn');
+    return;
+  }
+
+  if (!confirm('Esto actualizará el stock actual con el conteo físico ingresado. ¿Continuar?')) return;
+
+  try {
+    await sb('stock', {method:'POST', body:JSON.stringify(updates), prefer:'resolution=merge-duplicates'});
+    stock[AP] = ns;
+    renderCnt();
+    showFbk('✅ Conteo aplicado al stock actual.', 'ok');
+  } catch(e) {
+    showFbk('⚠️ Error al aplicar conteo: ' + e.message, 'warn');
+  }
+}
+
+function exportVisualCountExcel() {
+  const proj = projects.find(p => p.id === AP);
+  const prods = getProds();
+  const data = [['Proyecto','Producto','Unidad','Stock Actual','Conteo Físico','Diferencia','Observaciones']];
+  prods.forEach(p => {
+    const cur = getStock(p.id);
+    const val = CV[p.id] === undefined || CV[p.id] === '' ? '' : parseFloat(CV[p.id]);
+    const diff = val === '' ? '' : val - cur;
+    data.push([proj?.name || '', p.name, p.unit, cur, val, diff, CV_NOTE]);
+  });
+  const wb = XLSX.utils.book_new();
+  const ws = XLSX.utils.aoa_to_sheet(data);
+  ws['!cols'] = [{wch:24},{wch:50},{wch:12},{wch:14},{wch:14},{wch:12},{wch:60}];
+  XLSX.utils.book_append_sheet(wb, ws, 'Conteo Visual');
+  XLSX.writeFile(wb, `Conteo_Visual_${proj?.name || 'Proyecto'}_${TODAY}.xlsx`);
+}
+
 
 // ─── HISTORIAL ─────────────────────────────────────────────────────
 async function renderHis() {
@@ -707,6 +864,21 @@ async function exportExcel() {
         const wsPed = XLSX.utils.aoa_to_sheet(pedData);
     wsPed['!cols'] = [{wch:50},{wch:8},{wch:14},{wch:18},{wch:20},{wch:16}];
     XLSX.utils.book_append_sheet(wb, wsPed, 'Pedido ' + MONTHS[(CM+1)%12]);
+  } catch(e) {}
+
+
+  // Hoja 4: Conteo visual cargado en pantalla
+  try {
+    const cvData = [['Producto','Unidad','Stock Actual','Conteo Físico','Diferencia','Observaciones']];
+    prods.forEach(p => {
+      const cur = stk[p.id] ?? 0;
+      const val = CV[p.id] === undefined || CV[p.id] === '' ? '' : parseFloat(CV[p.id]);
+      const diff = val === '' ? '' : val - cur;
+      cvData.push([p.name, p.unit, cur, val, diff, CV_NOTE || '']);
+    });
+    const wsCv = XLSX.utils.aoa_to_sheet(cvData);
+    wsCv['!cols'] = [{wch:50},{wch:12},{wch:14},{wch:14},{wch:12},{wch:60}];
+    XLSX.utils.book_append_sheet(wb, wsCv, 'Conteo Visual');
   } catch(e) {}
 
   XLSX.writeFile(wb, `Inventario_${proj.name}_${MONTHS[CM]}_${CY}.xlsx`);
