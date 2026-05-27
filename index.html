@@ -228,6 +228,75 @@ let AP = null, AT = 'mov';
 let MI = {}, MD = TODAY, MR = '';
 let SA = false, AI = {}, SAP = false, NP = {name:'',unit:'PQT',em:''};
 
+// Inventario inicial para cargar en Uber / Uber Bambú sin duplicar productos existentes
+const UBER_BAMBU_PRODUCTS = [
+  {name:'Té Tilo', unit:'Caja', expected_monthly:0},
+  {name:'Té de Menta', unit:'Caja', expected_monthly:0},
+  {name:'Té verde Twinings Ginger', unit:'Caja', expected_monthly:0},
+  {name:'Tés surtidos', unit:'Caja', expected_monthly:0},
+  {name:'Azúcar SweetLite', unit:'Caja/Bolsa', expected_monthly:0},
+  {name:'Azúcar blanca Dos Pinos', unit:'Bolsa', expected_monthly:0},
+  {name:'Sal', unit:'Unidad', expected_monthly:0},
+  {name:'Café Volio', unit:'Bolsa', expected_monthly:0},
+  {name:'Café', unit:'Bolsa', expected_monthly:0},
+  {name:'Cocoa Hershey’s', unit:'Unidad', expected_monthly:0},
+  {name:'Cocoa Ice instantáneo', unit:'Unidad', expected_monthly:0},
+  {name:'Chocolate para café / bebidas', unit:'Unidad', expected_monthly:0},
+  {name:'Crema para café', unit:'Unidad', expected_monthly:0},
+  {name:'Filtros para máquina de café', unit:'PQT', expected_monthly:0},
+  {name:'Vasos desechables / Cups', unit:'PQT', expected_monthly:0},
+  {name:'Platos desechables', unit:'PQT', expected_monthly:0},
+  {name:'Papel toalla', unit:'PQT', expected_monthly:0},
+  {name:'Toallas de mano Tork H1', unit:'Caja', expected_monthly:0},
+  {name:'Kleenex Professional', unit:'Caja', expected_monthly:0},
+  {name:'Lysol wipes desinfectantes', unit:'Unidad', expected_monthly:0},
+  {name:'Leche Dos Pinos 1%', unit:'Unidad', expected_monthly:0},
+  {name:'Queso tipo mozzarella / string cheese', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Dos Pinos néctar - Manzana', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Dos Pinos néctar - Pera', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Dos Pinos néctar - Melocotón', unit:'Unidad', expected_monthly:0},
+  {name:'Frescoleche vainilla', unit:'Unidad', expected_monthly:0},
+  {name:'Frescoleche chocolate', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Del Valle - Mango', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Del Valle - Manzana', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Del Valle - Naranja', unit:'Unidad', expected_monthly:0},
+  {name:'Jugos Del Valle - Sabores surtidos', unit:'Unidad', expected_monthly:0},
+  {name:'Coca Cola mini', unit:'Unidad', expected_monthly:0},
+  {name:'Sprite mini', unit:'Unidad', expected_monthly:0},
+  {name:'Fanta mini', unit:'Unidad', expected_monthly:0},
+  {name:'Refrescos en lata variados', unit:'Unidad', expected_monthly:0},
+  {name:'Life', unit:'Unidad', expected_monthly:0},
+  {name:'Snickers', unit:'Unidad', expected_monthly:0},
+  {name:'Pringles', unit:'Unidad', expected_monthly:0},
+  {name:'Pistachios Wonderful roasted & salted', unit:'Unidad', expected_monthly:0},
+  {name:'Planters - Maní salado', unit:'Unidad', expected_monthly:0},
+  {name:'Planters - Maní honey roasted', unit:'Unidad', expected_monthly:0},
+  {name:'Planters - Cashews', unit:'Unidad', expected_monthly:0},
+  {name:'Oreo', unit:'Unidad', expected_monthly:0},
+  {name:'Club Social', unit:'Unidad', expected_monthly:0},
+  {name:'Chips Ahoy', unit:'Unidad', expected_monthly:0},
+  {name:'Teddy Grahams', unit:'Unidad', expected_monthly:0},
+  {name:'Chips de tubérculos Tropi Oh!', unit:'Unidad', expected_monthly:0},
+  {name:'Palitos jalapeños', unit:'Unidad', expected_monthly:0},
+  {name:'Marshmallows mini multicolor', unit:'Unidad', expected_monthly:0},
+  {name:'Butter Toffee', unit:'Unidad', expected_monthly:0},
+  {name:'Merendina', unit:'Unidad', expected_monthly:0},
+  {name:'Soda Gama', unit:'Unidad', expected_monthly:0},
+  {name:'Cheez-It Gripz', unit:'Unidad', expected_monthly:0},
+  {name:'Hostess Twinkies', unit:'Unidad', expected_monthly:0},
+  {name:'Hostess Cupcakes chocolate', unit:'Unidad', expected_monthly:0},
+  {name:'Nature Valley Protein Chewy Bar', unit:'Unidad', expected_monthly:0},
+  {name:'Nature Valley Chewy Fruit & Nut', unit:'Unidad', expected_monthly:0},
+  {name:'NutriSnacks salados surtidos', unit:'Unidad', expected_monthly:0},
+  {name:'ACT II Butter Lovers popcorn', unit:'Unidad', expected_monthly:0},
+  {name:'Snack Cups - Original', unit:'Unidad', expected_monthly:0},
+  {name:'Snack Cups - Sour Cream & Onion', unit:'Unidad', expected_monthly:0},
+  {name:'Snack Cups - Cheddar Cheese', unit:'Unidad', expected_monthly:0},
+  {name:'Comida preparada en recipientes plásticos', unit:'Unidad', expected_monthly:0},
+  {name:'Limón verde', unit:'Unidad', expected_monthly:0},
+  {name:'Pan / bollería en bolsa', unit:'Unidad', expected_monthly:0}
+];
+
 // ─── INIT ──────────────────────────────────────────────────────────
 async function init() {
   try {
@@ -591,7 +660,10 @@ function renderCfg() {
   el.innerHTML = `
     <div class="sec-hdr">
       <h3>Productos configurados</h3>
-      <button class="btn btn-primary btn-sm" onclick="SAP=true;NP={name:'',unit:'PQT',em:''};renderCfg()">+ Agregar</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-sm" onclick="seedUberBambuProducts()">📥 Cargar lista Uber Bambú</button>
+        <button class="btn btn-primary btn-sm" onclick="SAP=true;NP={name:'',unit:'PQT',em:''};renderCfg()">+ Agregar</button>
+      </div>
     </div>
     ${addForm}
     ${!prods.length
@@ -609,6 +681,50 @@ function renderCfg() {
             </tbody>
           </table>
         </div>`}`;
+}
+
+
+function normalizeName(v) {
+  return (v || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+async function seedUberBambuProducts() {
+  if (!AP) return;
+  const proj = projects.find(p => p.id === AP);
+  const msg = `Se cargarán los productos de café/snacks en ${proj?.name || 'este proyecto'} sin duplicar nombres existentes. ¿Continuar?`;
+  if (!confirm(msg)) return;
+
+  const current = products[AP] || [];
+  const existing = new Set(current.map(p => normalizeName(p.name)));
+  const missing = UBER_BAMBU_PRODUCTS.filter(p => !existing.has(normalizeName(p.name)));
+
+  if (!missing.length) {
+    showFbk('✅ La lista ya está cargada. No había productos nuevos por agregar.', 'ok');
+    return;
+  }
+
+  const stamp = Date.now();
+  const rows = missing.map((p, i) => ({
+    id: AP + '-bulk-' + stamp + '-' + i,
+    project_id: AP,
+    name: p.name,
+    unit: p.unit || 'Unidad',
+    expected_monthly: p.expected_monthly || 0
+  }));
+
+  try {
+    await sPost('products', rows);
+    const stockRows = rows.map(p => ({project_id: AP, product_id: p.id, qty: 0}));
+    await sb('stock', {method:'POST', body:JSON.stringify(stockRows), prefer:'resolution=merge-duplicates'});
+    products[AP] = current.concat(rows).sort((a,b) => a.name.localeCompare(b.name));
+    rows.forEach(p => { if (!stock[AP]) stock[AP] = {}; stock[AP][p.id] = 0; });
+    renderCfg();
+    showFbk('✅ Se agregaron ' + rows.length + ' productos nuevos sin duplicar.', 'ok');
+  } catch(e) {
+    showFbk('⚠️ Error al cargar productos: ' + e.message, 'warn');
+  }
 }
 
 async function addProduct() {
