@@ -259,12 +259,16 @@ let IMPORT_ROWS = [];
 // admin: ve todos los proyectos y Config.
 // project: ve solo proyectos cuyo nombre contenga alguna palabra indicada.
 const ACCESS_CODES = {
-  'ADMIN2026': {role:'admin', label:'Administrador', projects:['*']},
-  'SEC2026':   {role:'project', label:'SEC', projects:['sec']},
-  'TECH2026':  {role:'project', label:'TECH', projects:['tech']},
-  'BAMBU2026': {role:'project', label:'Uber Bambú', projects:['bambu','bambú']},
-  'CEDRAL2026':{role:'project', label:'Uber Cedral', projects:['cedral','ceca']},
-  'MCK2026':   {role:'project', label:'McKinsey', projects:['mck','mckinsey']}
+  'ADMIN2026':   {role:'admin', label:'Administrador', projects:['*']},
+  'LSEG2026':    {role:'project', label:'LSEG', projects:['lseg']},
+  'TECH2026':    {role:'project', label:'TECH', projects:['tech','cet']},
+  'BAMBU2026':   {role:'project', label:'Uber Bambú', projects:['bambu','bambú']},
+  'CEDRAL2026':  {role:'project', label:'Uber Cedral', projects:['cedral','ceca']},
+  'UBERCOE2026': {role:'project', label:'Uber COE', projects:['uber coe','ubercoe','coe']},
+  'UBERGO2026':  {role:'project', label:'UberGo', projects:['uber go','ubergo']},
+  'UBERFED2026': {role:'project', label:'Uber Federal', projects:['uber federal','federal']},
+  'BAYER2026':   {role:'project', label:'Bayer', projects:['bayer']},
+  'MCK2026':     {role:'project', label:'McKinsey', projects:['mck','mckinsey','mckenzie']}
 };
 let CURRENT_ACCESS = null;
 
