@@ -41,7 +41,7 @@ function getSavedCodes(){try{return JSON.parse(localStorage.getItem(LS_CODES_KEY
 function saveCodes(map){localStorage.setItem(LS_CODES_KEY,JSON.stringify(map||{}))}
 function getProjectCode(p){const saved=getSavedCodes();return (saved[p.id]||p.access_code||DEFAULT_CODES[p.name]||slugCode(p.name)).toString().trim().toUpperCase()}
 function setProjectCode(id,code){const saved=getSavedCodes();saved[id]=(code||'').toString().trim().toUpperCase();saveCodes(saved)}
-let session=null, projects=[], products={}, stock={}, AP=null, AT='mov', MI={}, MD=TODAY, MR='', SA=false, AI={}, SAP=false, NP={name:'',unit:'PQT',em:''}, COUNT={}, importRows=[];
+let session=null, projects=[], products={}, stock={}, AP=null, AT='mov', MI={}, MD=TODAY, MR='', SA=false, AI={}, SAP=false, NP={name:'',unit:'PQT',em:''}, COUNT={}, importRows=[], selectedProducts=new Set();
 function norm(v){return (v||'').toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ')}
 function roleProjects(){if(!session) return []; if(session.role==='admin') return projects; return projects.filter(p=>p.id===session.projectId)}
 async function loadProjects(){projects=await sGet('projects','order=name')||[];return projects}
