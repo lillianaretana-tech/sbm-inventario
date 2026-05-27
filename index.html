@@ -10,6 +10,16 @@
 body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:14px;background:#111827;color:#f1f5f9}
 .screen{display:none}.screen.active{display:block}
 
+/* LOGIN */
+.login-wrap{max-width:420px;margin:0 auto;padding:40px 18px}
+.login-card{background:#1e293b;border:1px solid #334155;border-radius:16px;padding:22px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.login-title{font-size:22px;font-weight:700;color:#f8fafc;margin-bottom:6px}
+.login-sub{font-size:13px;color:#94a3b8;margin-bottom:18px;line-height:1.45}
+.login-input{width:100%;border:1px solid #334155;border-radius:10px;padding:12px 14px;font-size:16px;background:#0f172a;color:#f1f5f9;margin-bottom:10px;text-align:center;letter-spacing:.08em}
+.login-input:focus{outline:none;border-color:#2563eb}
+.login-help{font-size:12px;color:#64748b;margin-top:12px;line-height:1.4}
+.access-pill{display:inline-block;background:#0f172a;border:1px solid #334155;color:#cbd5e1;border-radius:999px;padding:4px 10px;font-size:11px;margin-top:8px}
+
 /* HOME */
 .home-wrap{max-width:600px;margin:0 auto;padding:20px 16px}
 .home-title{font-size:22px;font-weight:600;color:#f1f5f9;margin-bottom:4px}
@@ -145,8 +155,22 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
 </head>
 <body>
 
+<!-- LOGIN -->
+<div id="s-login" class="screen active">
+  <div class="login-wrap">
+    <div class="login-card">
+      <p class="login-title">SBM Inventario</p>
+      <p class="login-sub">Ingresá tu código de acceso para abrir únicamente los proyectos autorizados.</p>
+      <input id="access-code" class="login-input" type="password" placeholder="Código de acceso" onkeydown="if(event.key==='Enter') loginAccess()">
+      <button class="btn btn-primary btn-full" onclick="loginAccess()">Entrar</button>
+      <div id="login-msg" class="feedback warn" style="display:none;margin-top:12px;margin-bottom:0"></div>
+      <p class="login-help">Cada encargada puede tener un código diferente por proyecto. La vista admin mantiene acceso completo.</p>
+    </div>
+  </div>
+</div>
+
 <!-- HOME -->
-<div id="s-home" class="screen active">
+<div id="s-home" class="screen">
   <div class="home-wrap">
     <p class="home-title">Control de Inventarios</p>
     <p class="home-sub">SBM Corp — Seleccioná el proyecto</p>
@@ -164,7 +188,8 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
     <span id="hdr-month" class="header-month"></span>
     <div class="header-actions no-print">
       <button class="btn btn-sm" onclick="exportExcel()" title="Exportar Excel">📊 Excel</button>
-      <button class="btn btn-sm" onclick="printView()" title="Imprimir">🖨️ Imprimir</button>
+      <button class="btn btn-sm" onclick="printView()" title="Generar PDF / Imprimir">📄 PDF</button>
+      <button class="btn btn-sm" onclick="logoutAccess()" title="Cambiar usuario">Salir</button>
     </div>
   </div>
 
@@ -173,7 +198,6 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
       <button class="tab-btn active" data-t="mov">Movimientos</button>
       <button class="tab-btn" data-t="inv">Inventario</button>
       <button class="tab-btn" data-t="ped" id="ped-tab">Pedido</button>
-      <button class="tab-btn" data-t="cnt">Conteo Foto</button>
       <button class="tab-btn" data-t="his">Historial</button>
       <button class="tab-btn" data-t="cfg">Config</button>
     </div>
@@ -184,7 +208,6 @@ details summary{cursor:pointer;font-size:12px;color:#64748b;padding:6px 0;user-s
     <div id="t-mov" class="tab-pane"></div>
     <div id="t-inv" class="tab-pane" style="display:none"></div>
     <div id="t-ped" class="tab-pane" style="display:none"></div>
-    <div id="t-cnt" class="tab-pane" style="display:none"></div>
     <div id="t-his" class="tab-pane" style="display:none"></div>
     <div id="t-cfg" class="tab-pane" style="display:none"></div>
   </div>
@@ -229,39 +252,63 @@ let projects = [], products = {}, stock = {};
 let AP = null, AT = 'mov';
 let MI = {}, MD = TODAY, MR = '';
 let SA = false, AI = {}, SAP = false, NP = {name:'',unit:'PQT',em:''};
-let CV = {}, CV_NOTE = '';
+let IMPORT_ROWS = [];
 
+// ─── ACCESOS POR ROL / PROYECTO ───────────────────────────────────
+// Cambiá estos códigos antes de compartir la app.
+// admin: ve todos los proyectos y Config.
+// project: ve solo proyectos cuyo nombre contenga alguna palabra indicada.
+const ACCESS_CODES = {
+  'ADMIN2026': {role:'admin', label:'Administrador', projects:['*']},
+  'SEC2026':   {role:'project', label:'SEC', projects:['sec']},
+  'TECH2026':  {role:'project', label:'TECH', projects:['tech']},
+  'BAMBU2026': {role:'project', label:'Uber Bambú', projects:['bambu','bambú']},
+  'CEDRAL2026':{role:'project', label:'Uber Cedral', projects:['cedral','ceca']},
+  'MCK2026':   {role:'project', label:'McKinsey', projects:['mck','mckinsey']}
+};
+let CURRENT_ACCESS = null;
 
-// Conteo visual estimado desde fotos de bodega Uber Bambú.
-// Sirve como punto de partida: la persona encargada puede corregir cantidades antes de aplicar al stock.
-const VISUAL_COUNT_PRESET = [
-  {name:'Toallas de mano Tork H1', qty:3, unit:'cajas', confidence:'Alta'},
-  {name:'Kleenex Professional', qty:2, unit:'cajas', confidence:'Alta'},
-  {name:'Lysol wipes desinfectantes', qty:7, unit:'unidades', confidence:'Media'},
-  {name:'Hostess Twinkies', qty:1, unit:'caja', confidence:'Media'},
-  {name:'Hostess Cupcakes chocolate', qty:1, unit:'caja', confidence:'Media'},
-  {name:'Coca Cola mini', qty:2, unit:'paquetes', confidence:'Media'},
-  {name:'Sprite mini', qty:2, unit:'unidades visibles', confidence:'Media'},
-  {name:'Fanta mini', qty:2, unit:'unidades visibles', confidence:'Media'},
-  {name:'Frescoleche vainilla', qty:9, unit:'unidades visibles', confidence:'Media'},
-  {name:'Frescoleche chocolate', qty:8, unit:'unidades visibles', confidence:'Media'},
-  {name:'Jugos Dos Pinos néctar - Manzana', qty:2, unit:'unidades visibles', confidence:'Media'},
-  {name:'Jugos Dos Pinos néctar - Pera', qty:2, unit:'unidades visibles', confidence:'Media'},
-  {name:'Jugos Dos Pinos néctar - Melocotón', qty:2, unit:'unidades visibles', confidence:'Media'},
-  {name:'Jugos Del Valle - Sabores surtidos', qty:6, unit:'unidades visibles', confidence:'Media'},
-  {name:'Nature Valley Protein Chewy Bar', qty:1, unit:'caja', confidence:'Alta'},
-  {name:'Nature Valley Chewy Fruit & Nut', qty:1, unit:'caja', confidence:'Alta'},
-  {name:'NutriSnacks salados surtidos', qty:1, unit:'caja', confidence:'Alta'},
-  {name:'ACT II Butter Lovers popcorn', qty:3, unit:'cajas', confidence:'Media'},
-  {name:'Planters - Maní salado', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
-  {name:'Planters - Maní honey roasted', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
-  {name:'Planters - Cashews', qty:2, unit:'cajas surtidas Planters', confidence:'Media'},
-  {name:'Pistachios Wonderful roasted & salted', qty:3, unit:'cajas', confidence:'Alta'},
-  {name:'Snack Cups - Original', qty:2, unit:'cajas surtidas', confidence:'Media'},
-  {name:'Snack Cups - Sour Cream & Onion', qty:2, unit:'cajas surtidas', confidence:'Media'},
-  {name:'Snack Cups - Cheddar Cheese', qty:2, unit:'cajas surtidas', confidence:'Media'},
-  {name:'Marshmallows mini multicolor', qty:1, unit:'bolsa grande', confidence:'Alta'}
-];
+function cleanText(v){
+  return (v || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+function isAdmin(){ return CURRENT_ACCESS?.role === 'admin'; }
+function canViewProject(p){
+  if (!CURRENT_ACCESS) return false;
+  if (CURRENT_ACCESS.projects.includes('*')) return true;
+  const name = cleanText(p.name);
+  return CURRENT_ACCESS.projects.some(k => name.includes(cleanText(k)));
+}
+function getVisibleProjects(){ return projects.filter(canViewProject); }
+
+function loginAccess(){
+  const code = (document.getElementById('access-code').value || '').trim().toUpperCase();
+  const access = ACCESS_CODES[code];
+  const msg = document.getElementById('login-msg');
+  if (!access) {
+    msg.textContent = 'Código incorrecto o no autorizado.';
+    msg.style.display = 'block';
+    return;
+  }
+  CURRENT_ACCESS = access;
+  sessionStorage.setItem('sbm_access_code', code);
+  msg.style.display = 'none';
+  document.getElementById('s-login').classList.remove('active');
+  document.getElementById('s-home').classList.add('active');
+  renderHome();
+  const visible = getVisibleProjects();
+  if (!isAdmin() && visible.length === 1) openProject(visible[0].id);
+}
+
+function logoutAccess(){
+  sessionStorage.removeItem('sbm_access_code');
+  CURRENT_ACCESS = null; AP = null;
+  document.getElementById('access-code').value = '';
+  document.getElementById('s-proj').classList.remove('active');
+  document.getElementById('s-home').classList.remove('active');
+  document.getElementById('s-login').classList.add('active');
+}
 
 // ─── INIT ──────────────────────────────────────────────────────────
 async function init() {
@@ -269,23 +316,34 @@ async function init() {
     projects = await sGet('projects', 'order=name');
     document.getElementById('loading-home').style.display = 'none';
     document.getElementById('proj-grid').style.display = 'grid';
-    renderHome();
+    const savedCode = (sessionStorage.getItem('sbm_access_code') || '').toUpperCase();
+    if (ACCESS_CODES[savedCode]) {
+      CURRENT_ACCESS = ACCESS_CODES[savedCode];
+      document.getElementById('s-login').classList.remove('active');
+      document.getElementById('s-home').classList.add('active');
+      renderHome();
+      const visible = getVisibleProjects();
+      if (!isAdmin() && visible.length === 1) openProject(visible[0].id);
+    }
   } catch(e) {
     document.getElementById('loading-home').innerHTML = '⚠️ Error al conectar con Supabase. Recargá la página.';
   }
 }
 
 function renderHome() {
-  document.getElementById('proj-grid').innerHTML = projects.map(p => `
+  const visible = getVisibleProjects();
+  document.getElementById('proj-grid').innerHTML = visible.length ? visible.map(p => `
     <div class="proj-card" onclick="openProject('${p.id}')">
       <div class="proj-dot" style="background:${p.color}"></div>
       <div class="proj-name">${p.name}</div>
       <div class="proj-count">Toca para abrir</div>
-    </div>`).join('');
+    </div>`).join('') : '<div class="loading">No hay proyectos autorizados para este código.</div>';
 }
 
 // ─── OPEN PROJECT ──────────────────────────────────────────────────
 async function openProject(pid) {
+  const requestedProject = projects.find(x => x.id === pid);
+  if (!requestedProject || !canViewProject(requestedProject)) { alert('No tenés acceso a este proyecto.'); return; }
   AP = pid; AT = 'mov'; MI = {}; MD = TODAY; MR = '';
   SA = false; AI = {}; SAP = false;
   const p = projects.find(x => x.id === pid);
@@ -296,6 +354,8 @@ async function openProject(pid) {
   document.getElementById('hdr-title').textContent = p.name;
   document.getElementById('hdr-month').textContent = MONTHS[CM] + ' ' + CY;
   document.getElementById('ped-tab').textContent = 'Pedido' + (CD >= 18 ? ' 🔔' : '');
+  document.querySelector('[data-t=cfg]').style.display = isAdmin() ? '' : 'none';
+  document.querySelector('[data-t=his]').style.display = isAdmin() ? '' : 'none';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.t === 'mov'));
   hideFbk();
 
@@ -327,13 +387,13 @@ document.getElementById('tabs').onclick = e => {
 };
 
 function showTab(t) {
+  if (!isAdmin() && (t === 'cfg' || t === 'his')) t = 'mov';
   document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
   document.getElementById('t-' + t).style.display = 'block';
   hideFbk();
   if (t === 'mov') renderMov();
   else if (t === 'inv') renderInv();
   else if (t === 'ped') renderPed();
-  else if (t === 'cnt') renderCnt();
   else if (t === 'his') renderHis();
   else if (t === 'cfg') renderCfg();
 }
@@ -570,137 +630,6 @@ async function renderPed() {
   }
 }
 
-
-// ─── CONTEO POR FOTO / CONTEO VISUAL ───────────────────────────────
-function renderCnt() {
-  const el = document.getElementById('t-cnt');
-  const prods = getProds();
-  if (!prods.length) {
-    el.innerHTML = `<div class="loading">No hay productos configurados para conteo visual.</div>`;
-    return;
-  }
-
-  const rows = prods.map(p => {
-    const cur = getStock(p.id);
-    const val = CV[p.id] ?? '';
-    return `<tr>
-      <td><span class="pname" title="${p.name}">${p.name}</span><span class="psub">${p.unit}</span></td>
-      <td class="tc" style="font-weight:600">${cur}</td>
-      <td class="tc"><input class="ni" type="number" min="0" step="1" value="${val}" placeholder="0" oninput="CV['${p.id}']=this.value"></td>
-      <td class="tc" id="cv-diff-${p.id}">${val === '' ? '<span style="color:#64748b">—</span>' : diffHtml(cur, val)}</td>
-    </tr>`;
-  }).join('');
-
-  el.innerHTML = `
-    <div class="info-box">
-      <b>📸 Conteo por foto / conteo visual</b><br>
-      <span style="font-size:12px;opacity:.9">
-        Usá esta pantalla para cargar el conteo estimado desde fotos. La IA puede sugerir cantidades, la funcionaria las corrige y luego se aplican como stock físico actual.
-      </span>
-    </div>
-    <div class="card card-pad no-print">
-      <div class="btn-row" style="margin-top:0">
-        <button class="btn btn-primary" onclick="loadVisualPreset()">Cargar conteo estimado</button>
-        <button class="btn" onclick="clearVisualCount()">Limpiar conteo</button>
-        <button class="btn" onclick="exportVisualCountExcel()">Excel conteo</button>
-      </div>
-      <div style="margin-top:12px">
-        <label style="display:block;font-size:11px;font-weight:600;color:#94a3b8;margin-bottom:5px;text-transform:uppercase">Observaciones del conteo</label>
-        <input class="input-full" placeholder="Ej: Conteo estimado por fotos de bodega; pendiente validar productos abiertos." value="${CV_NOTE}" oninput="CV_NOTE=this.value">
-      </div>
-    </div>
-    <div class="card" style="overflow-x:auto">
-      <table>
-        <thead><tr>
-          <th>Producto</th>
-          <th class="tc">Stock actual</th>
-          <th class="tc">Conteo físico</th>
-          <th class="tc">Diferencia</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-    <button class="btn btn-primary btn-full no-print" onclick="applyVisualCount()">✓ Aplicar conteo al stock</button>`;
-}
-
-function diffHtml(cur, val) {
-  const n = parseFloat(val);
-  if (isNaN(n)) return '<span style="color:#64748b">—</span>';
-  const d = n - cur;
-  if (d > 0) return `<span class="ns-pos">+${d}</span>`;
-  if (d < 0) return `<span class="ns-neg">${d}</span>`;
-  return '<span style="color:#86efac">0</span>';
-}
-
-function loadVisualPreset() {
-  if (!AP) return;
-  const prods = getProds();
-  const byName = {};
-  prods.forEach(p => byName[normalizeName(p.name)] = p);
-
-  VISUAL_COUNT_PRESET.forEach(row => {
-    const p = byName[normalizeName(row.name)];
-    if (p) CV[p.id] = row.qty;
-  });
-
-  CV_NOTE = 'Conteo visual estimado por fotos de bodega. Validar productos parcialmente abiertos o unidades ocultas antes de enviar reporte final.';
-  renderCnt();
-  showFbk('✅ Conteo estimado cargado. Revisá y corregí antes de aplicar.', 'ok');
-}
-
-function clearVisualCount() {
-  if (!confirm('¿Limpiar el conteo visual cargado?')) return;
-  CV = {};
-  CV_NOTE = '';
-  renderCnt();
-}
-
-async function applyVisualCount() {
-  const updates = [];
-  const ns = {...(stock[AP] || {})};
-  Object.entries(CV).forEach(([pid, val]) => {
-    const n = parseFloat(val);
-    if (!isNaN(n) && n >= 0) {
-      ns[pid] = n;
-      updates.push({project_id: AP, product_id: pid, qty: n});
-    }
-  });
-
-  if (!updates.length) {
-    showFbk('⚠️ No hay cantidades válidas para aplicar.', 'warn');
-    return;
-  }
-
-  if (!confirm('Esto actualizará el stock actual con el conteo físico ingresado. ¿Continuar?')) return;
-
-  try {
-    await sb('stock', {method:'POST', body:JSON.stringify(updates), prefer:'resolution=merge-duplicates'});
-    stock[AP] = ns;
-    renderCnt();
-    showFbk('✅ Conteo aplicado al stock actual.', 'ok');
-  } catch(e) {
-    showFbk('⚠️ Error al aplicar conteo: ' + e.message, 'warn');
-  }
-}
-
-function exportVisualCountExcel() {
-  const proj = projects.find(p => p.id === AP);
-  const prods = getProds();
-  const data = [['Proyecto','Producto','Unidad','Stock Actual','Conteo Físico','Diferencia','Observaciones']];
-  prods.forEach(p => {
-    const cur = getStock(p.id);
-    const val = CV[p.id] === undefined || CV[p.id] === '' ? '' : parseFloat(CV[p.id]);
-    const diff = val === '' ? '' : val - cur;
-    data.push([proj?.name || '', p.name, p.unit, cur, val, diff, CV_NOTE]);
-  });
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(data);
-  ws['!cols'] = [{wch:24},{wch:50},{wch:12},{wch:14},{wch:14},{wch:12},{wch:60}];
-  XLSX.utils.book_append_sheet(wb, ws, 'Conteo Visual');
-  XLSX.writeFile(wb, `Conteo_Visual_${proj?.name || 'Proyecto'}_${TODAY}.xlsx`);
-}
-
-
 // ─── HISTORIAL ─────────────────────────────────────────────────────
 async function renderHis() {
   const el = document.getElementById('t-his');
@@ -755,11 +684,30 @@ function renderCfg() {
       </div>
     </div>` : '';
 
+  const importPanel = isAdmin() ? `
+    <div class="adj-panel" style="margin-bottom:12px">
+      <p style="font-size:13px;font-weight:600;margin-bottom:8px">📥 Importar lista de productos</p>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:10px">
+        Podés subir un Excel/CSV o pegar una lista. Columnas sugeridas: Producto, Unidad, Consumo mensual, Stock inicial.
+      </p>
+      <input type="file" id="import-file" accept=".xlsx,.xls,.csv" class="input-full" onchange="handleImportFile(event)" style="margin-bottom:8px">
+      <textarea id="import-text" class="input-full" rows="4" placeholder="Ejemplo:
+Desinfectante galón	Galón	2	0
+Papel higiénico	Caja	5	3" style="resize:vertical;margin-bottom:8px"></textarea>
+      <div class="btn-row" style="margin-top:0">
+        <button class="btn" onclick="previewImportText()">Vista previa</button>
+        <button class="btn btn-primary" onclick="importProductsToProject()">Cargar productos</button>
+        <button class="btn" onclick="clearImportBox()">Limpiar</button>
+      </div>
+      <div id="import-preview" style="font-size:12px;color:#cbd5e1;margin-top:10px"></div>
+    </div>` : '';
+
   el.innerHTML = `
     <div class="sec-hdr">
       <h3>Productos configurados</h3>
       <button class="btn btn-primary btn-sm" onclick="SAP=true;NP={name:'',unit:'PQT',em:''};renderCfg()">+ Agregar</button>
     </div>
+    ${importPanel}
     ${addForm}
     ${!prods.length
       ? '<div class="loading">No hay productos — agregá el primero</div>'
@@ -776,6 +724,149 @@ function renderCfg() {
             </tbody>
           </table>
         </div>`}`;
+}
+
+
+function normalizeName(v) {
+  return (v || '').toString().trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ');
+}
+
+function parseNumber(v) {
+  if (v === null || v === undefined || v === '') return 0;
+  const n = parseFloat(String(v).replace(/[₡,$\s]/g, '').replace(',', '.'));
+  return isNaN(n) ? 0 : n;
+}
+
+function parseImportAoA(aoa) {
+  const clean = (aoa || []).filter(r => r && r.some(c => String(c || '').trim() !== ''));
+  if (!clean.length) return [];
+  const first = clean[0].map(c => normalizeName(c));
+  const hasHeader = first.some(c => ['producto','product','nombre','name'].includes(c));
+  let idx = {name:0, unit:1, expected:2, stock:3};
+  let rows = clean;
+  if (hasHeader) {
+    const findIdx = (keys, fallback) => {
+      const i = first.findIndex(h => keys.some(k => h.includes(k)));
+      return i >= 0 ? i : fallback;
+    };
+    idx = {
+      name: findIdx(['producto','product','nombre','name'], 0),
+      unit: findIdx(['unidad','unit','presentacion','presentación'], 1),
+      expected: findIdx(['consumo','mensual','expected'], 2),
+      stock: findIdx(['stock','inventario','cantidad','saldo'], 3)
+    };
+    rows = clean.slice(1);
+  }
+  return rows.map(r => ({
+    name: String(r[idx.name] || '').trim(),
+    unit: String(r[idx.unit] || 'Unidad').trim() || 'Unidad',
+    expected_monthly: parseNumber(r[idx.expected]),
+    initial_stock: parseNumber(r[idx.stock])
+  })).filter(x => x.name);
+}
+
+function parseImportTextValue(text) {
+  const lines = String(text || '').split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+  const aoa = lines.map(line => {
+    if (line.includes('\t')) return line.split('\t');
+    if (line.includes(';')) return line.split(';');
+    if (line.includes(',')) return line.split(',');
+    return [line, 'Unidad', 0, 0];
+  });
+  return parseImportAoA(aoa);
+}
+
+function showImportPreview(rows) {
+  const el = document.getElementById('import-preview');
+  if (!el) return;
+  if (!rows.length) { el.innerHTML = 'No se detectaron productos para importar.'; return; }
+  const sample = rows.slice(0, 6).map(r => `• ${r.name} — ${r.unit} — consumo ${r.expected_monthly} — stock inicial ${r.initial_stock}`).join('<br>');
+  el.innerHTML = `<b>${rows.length} producto(s) detectado(s)</b><br>${sample}${rows.length > 6 ? '<br>…' : ''}`;
+}
+
+function previewImportText() {
+  const text = document.getElementById('import-text')?.value || '';
+  IMPORT_ROWS = parseImportTextValue(text);
+  showImportPreview(IMPORT_ROWS);
+}
+
+function clearImportBox() {
+  IMPORT_ROWS = [];
+  const file = document.getElementById('import-file');
+  const text = document.getElementById('import-text');
+  const prev = document.getElementById('import-preview');
+  if (file) file.value = '';
+  if (text) text.value = '';
+  if (prev) prev.innerHTML = '';
+}
+
+function handleImportFile(event) {
+  const file = event.target.files && event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+      IMPORT_ROWS = parseImportAoA(aoa);
+      showImportPreview(IMPORT_ROWS);
+      showFbk('✅ Archivo leído. Revisá la vista previa y presioná Cargar productos.', 'ok');
+    } catch(err) {
+      showFbk('⚠️ No se pudo leer el archivo: ' + err.message, 'warn');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+async function importProductsToProject() {
+  if (!isAdmin()) { showFbk('⚠️ Solo Admin puede importar productos.', 'warn'); return; }
+  if (!AP) return;
+  if (!IMPORT_ROWS.length) previewImportText();
+  if (!IMPORT_ROWS.length) { showFbk('⚠️ No hay productos para cargar.', 'warn'); return; }
+
+  const current = products[AP] || [];
+  const existing = new Set(current.map(p => normalizeName(p.name)));
+  const unique = [];
+  const seen = new Set();
+  for (const r of IMPORT_ROWS) {
+    const key = normalizeName(r.name);
+    if (!key || existing.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    unique.push(r);
+  }
+  if (!unique.length) { showFbk('✅ No había productos nuevos. Todo ya existe o estaba duplicado.', 'ok'); return; }
+
+  const stamp = Date.now();
+  const rows = unique.map((r, i) => ({
+    id: AP + '-imp-' + stamp + '-' + i,
+    project_id: AP,
+    name: r.name,
+    unit: r.unit || 'Unidad',
+    expected_monthly: r.expected_monthly || 0
+  }));
+  const stockRows = rows.map((p, i) => ({
+    project_id: AP,
+    product_id: p.id,
+    qty: unique[i].initial_stock || 0
+  }));
+
+  try {
+    await sPost('products', rows);
+    await sb('stock', {method:'POST', body:JSON.stringify(stockRows), prefer:'resolution=merge-duplicates'});
+    products[AP] = current.concat(rows).sort((a,b) => a.name.localeCompare(b.name));
+    if (!stock[AP]) stock[AP] = {};
+    rows.forEach((p, i) => { stock[AP][p.id] = unique[i].initial_stock || 0; });
+    const added = rows.length;
+    IMPORT_ROWS = [];
+    renderCfg();
+    showFbk('✅ Se cargaron ' + added + ' producto(s) nuevos en este proyecto.', 'ok');
+  } catch(e) {
+    showFbk('⚠️ Error al importar productos: ' + e.message, 'warn');
+  }
 }
 
 async function addProduct() {
@@ -866,21 +957,6 @@ async function exportExcel() {
     XLSX.utils.book_append_sheet(wb, wsPed, 'Pedido ' + MONTHS[(CM+1)%12]);
   } catch(e) {}
 
-
-  // Hoja 4: Conteo visual cargado en pantalla
-  try {
-    const cvData = [['Producto','Unidad','Stock Actual','Conteo Físico','Diferencia','Observaciones']];
-    prods.forEach(p => {
-      const cur = stk[p.id] ?? 0;
-      const val = CV[p.id] === undefined || CV[p.id] === '' ? '' : parseFloat(CV[p.id]);
-      const diff = val === '' ? '' : val - cur;
-      cvData.push([p.name, p.unit, cur, val, diff, CV_NOTE || '']);
-    });
-    const wsCv = XLSX.utils.aoa_to_sheet(cvData);
-    wsCv['!cols'] = [{wch:50},{wch:12},{wch:14},{wch:14},{wch:12},{wch:60}];
-    XLSX.utils.book_append_sheet(wb, wsCv, 'Conteo Visual');
-  } catch(e) {}
-
   XLSX.writeFile(wb, `Inventario_${proj.name}_${MONTHS[CM]}_${CY}.xlsx`);
 }
 
@@ -902,6 +978,7 @@ function printView() {
 
 // ─── UTILS ─────────────────────────────────────────────────────────
 function goTab(t) {
+  if (!isAdmin() && (t === 'cfg' || t === 'his')) t = 'mov';
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.t === t));
   AT = t; showTab(t);
 }
