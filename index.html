@@ -23,7 +23,7 @@ async function sb(path, opts={}){const {prefer,...fetchOpts}=opts;const res=awai
 const sGet=(t,q='')=>sb(t+(q?'?'+q:''),{method:'GET'}); const sPost=(t,data,prefer)=>sb(t,{method:'POST',body:JSON.stringify(data),prefer:prefer||'return=representation'}); const sPatch=(t,q,data)=>sb(t+'?'+q,{method:'PATCH',body:JSON.stringify(data)}); const sDel=(t,q)=>sb(t+'?'+q,{method:'DELETE'});
 const now=new Date(), TODAY=now.toISOString().split('T')[0], CY=now.getFullYear(), CM=now.getMonth(), CD=now.getDate();
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
-const ADMIN_CODE='ADMIN2026';
+const ADMIN_CODE='V1LL41967!';
 const DEFAULT_CODES={
  'Advant':'ADVANT2026',
  'Bayer Metro':'BAYER2026',
