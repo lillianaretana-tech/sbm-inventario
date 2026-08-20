@@ -13,7 +13,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-siz
 <body>
 <div id="s-login" class="screen active"><div class="home-wrap"><p class="home-title">Control de Inventarios</p><p class="home-sub">SBM Corp — Acceso por proyecto</p><div class="login-card"><div class="field"><label>Código de acceso</label><input id="access-code" class="input-full" type="password" placeholder="Ejemplo: ADMIN2026" onkeydown="if(event.key==='Enter') login()"></div><div class="btn-row"><button class="btn btn-primary btn-full" onclick="login()">Ingresar</button></div><p class="muted" style="margin-top:10px">Cada encargada verá únicamente su proyecto. Admin ve todos los proyectos y configuración.</p></div></div></div>
 <div id="s-home" class="screen"><div class="home-wrap"><p class="home-title">Control de Inventarios</p><p class="home-sub" id="home-sub">Seleccioná el proyecto</p><div id="loading-home" class="loading"><div class="spinner"></div>Cargando proyectos...</div><div class="proj-grid" id="proj-grid" style="display:none"></div><div id="home-project-admin" style="display:none;margin-top:16px"></div></div></div>
-<div id="s-proj" class="screen"><div class="proj-header no-print"><button class="back-btn" id="back-btn" title="Volver">&#8592;</button><div class="proj-dot" id="hdr-dot" style="width:10px;height:10px;border-radius:50%"></div><span id="hdr-title" style="font-weight:700;font-size:15px"></span><span id="hdr-month" class="header-month"></span><span id="hdr-viewer-badge" style="display:none;background:#1e3a5f;color:#93c5fd;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;border:1px solid #2563eb">👁 Solo lectura</span><div class="header-actions no-print"><button class="btn btn-sm" onclick="exportExcel()" title="Exportar Excel">📊 Excel</button><button class="btn btn-sm" onclick="printView()" title="PDF / Imprimir">🖨️ PDF</button><button class="btn btn-sm btn-danger" onclick="logout()" title="Cerrar sesión">🚪 Salir</button></div></div>
+<div id="s-proj" class="screen"><div class="proj-header no-print"><button class="back-btn" id="back-btn" title="Volver">&#8592;</button><div class="proj-dot" id="hdr-dot" style="width:10px;height:10px;border-radius:50%"></div><span id="hdr-title" style="font-weight:700;font-size:15px"></span><span id="hdr-month" class="header-month"></span><span id="hdr-viewer-badge" style="display:none;background:#1e3a5f;color:#93c5fd;font-size:11px;font-weight:600;padding:3px 8px;border-radius:999px;border:1px solid #2563eb">👁 Solo lectura</span><div class="header-actions no-print"><button class="btn btn-sm" onclick="showExportModal()" title="Exportar Excel">📊 Excel</button><button class="btn btn-sm" onclick="printView()" title="PDF / Imprimir">🖨️ PDF</button><button class="btn btn-sm btn-danger" onclick="logout()" title="Cerrar sesión">🚪 Salir</button></div></div>
 <div class="tabs-wrap no-print"><div class="tabs" id="tabs"><button class="tab-btn active no-viewer" data-t="mov">Movimientos</button><button class="tab-btn" data-t="inv">Inventario</button><button class="tab-btn" data-t="ped" id="ped-tab">Pedido</button><button class="tab-btn no-viewer" data-t="count">Conteo físico</button><button class="tab-btn admin-tab" data-t="his">Historial</button><button class="tab-btn admin-tab" data-t="cfg">Config</button></div></div>
 <div class="content"><div id="fbk" class="feedback"></div><div id="t-mov" class="tab-pane"></div><div id="t-inv" class="tab-pane" style="display:none"></div><div id="t-ped" class="tab-pane" style="display:none"></div><div id="t-count" class="tab-pane" style="display:none"></div><div id="t-his" class="tab-pane" style="display:none"></div><div id="t-cfg" class="tab-pane" style="display:none"></div></div></div>
 <script>
@@ -222,7 +222,155 @@ async function deleteSelectedProducts(){
 }
 
 async function deleteProduct(id){if(!confirm('¿Eliminar este producto?'))return;try{await sDel('stock','product_id=eq.'+encodeURIComponent(id));await sDel('movements','product_id=eq.'+encodeURIComponent(id));await sDel('products','id=eq.'+encodeURIComponent(id));products[AP]=products[AP].filter(p=>p.id!==id);delete stock[AP][id];renderCfg()}catch(e){showFbk('⚠️ Error: '+e.message,'warn')}}
-async function exportExcel(){const proj=projects.find(p=>p.id===AP), wb=XLSX.utils.book_new(), firstDay=`${CY}-${String(CM+1).padStart(2,'0')}-01`;const inv=[['Producto','Unidad','Stock Actual','Mínimo mensual requerido','Estado']];getProds().forEach(p=>{const s=getStock(p.id), exp=parseFloat(p.expected_monthly)||0, r=exp>0?s/exp:1, st=r<=.2?'Crítico':r<=.5?'Bajo':'OK';inv.push([p.name,p.unit||'',s,exp,st])});let ws=XLSX.utils.aoa_to_sheet(inv);ws['!cols']=[{wch:50},{wch:12},{wch:14},{wch:24},{wch:12}];XLSX.utils.book_append_sheet(wb,ws,'Stock Actual');try{const movs=await sGet('movements',`project_id=eq.${encodeURIComponent(AP)}&date=gte.${firstDay}&order=date,created_at`), mov=[['Fecha','Tipo','Producto','Unidad','Cantidad','Responsable']];(movs||[]).forEach(m=>{const p=getProds().find(x=>x.id===m.product_id);mov.push([m.date,m.type,p?.name||m.product_id,p?.unit||'',parseFloat(m.qty),m.responsable||''])});ws=XLSX.utils.aoa_to_sheet(mov);ws['!cols']=[{wch:12},{wch:10},{wch:50},{wch:10},{wch:10},{wch:20}];XLSX.utils.book_append_sheet(wb,ws,'Movimientos')}catch(e){}XLSX.writeFile(wb,`Inventario_${proj?.name||AP}_${MONTHS[CM]}_${CY}.xlsx`)}
+function showExportModal(){
+  const now2=new Date();
+  let html=`<div id="exp-modal" style="position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:999;display:flex;align-items:center;justify-content:center">
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:16px;padding:24px;width:340px;max-width:95vw">
+      <h3 style="font-size:16px;font-weight:700;margin-bottom:16px;color:#f1f5f9">📊 Exportar Excel</h3>
+      <div style="margin-bottom:12px">
+        <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px">Mes</label>
+        <select id="exp-month" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:13px;color:#f1f5f9">
+          ${MONTHS.map((m,i)=>`<option value="${i}" ${i===CM?'selected':''}>${m}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:20px">
+        <label style="font-size:11px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.04em;display:block;margin-bottom:5px">Año</label>
+        <select id="exp-year" style="width:100%;background:#0f172a;border:1px solid #334155;border-radius:8px;padding:8px 10px;font-size:13px;color:#f1f5f9">
+          ${[now2.getFullYear()-1,now2.getFullYear(),now2.getFullYear()+1].map(y=>`<option value="${y}" ${y===now2.getFullYear()?'selected':''}>${y}</option>`).join('')}
+        </select>
+      </div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" onclick="runExport()">Generar Excel</button>
+        <button class="btn" style="flex:1" onclick="document.getElementById('exp-modal').remove()">Cancelar</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.insertAdjacentHTML('beforeend',html);
+}
+
+async function runExport(){
+  const expMonth=parseInt(document.getElementById('exp-month').value);
+  const expYear=parseInt(document.getElementById('exp-year').value);
+  document.getElementById('exp-modal').remove();
+  await exportExcel(expMonth, expYear);
+}
+
+async function exportExcel(expMonth, expYear){
+  if(expMonth===undefined)expMonth=CM;
+  if(expYear===undefined)expYear=CY;
+  const proj=projects.find(p=>p.id===AP);
+  const projName=proj?.name||AP;
+  const mesNombre=MONTHS[expMonth];
+  const wb=XLSX.utils.book_new();
+  const prods=getProds();
+  const stk=stock[AP]||{};
+
+  // Helper: apply styles to a sheet header row
+  function styleSheet(ws, ncols, headerRow){
+    // Column widths already set by caller
+    // Freeze top rows
+    ws['!freeze']={xSplit:0,ySplit:headerRow||1};
+  }
+
+  // ── HOJA 1: Portada ──────────────────────────────────────────────
+  const cover=[
+    [`REPORTE DE INVENTARIO`],
+    [``],
+    [`Proyecto:`, projName],
+    [`Período:`, `${mesNombre} ${expYear}`],
+    [`Generado:`, new Date().toLocaleDateString('es-CR',{day:'2-digit',month:'long',year:'numeric'})],
+    [`Total productos:`, prods.length],
+    [``],
+    [`Este reporte fue generado automáticamente por el Sistema de Control de Inventarios SBM Corp.`],
+  ];
+  const wsCover=XLSX.utils.aoa_to_sheet(cover);
+  wsCover['!cols']=[{wch:22},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,wsCover,'Portada');
+
+  // ── HOJA 2: Stock Actual ─────────────────────────────────────────
+  const invHeader=['N°','Producto','Unidad','Stock Actual','Consumo Mensual','Estado','Cobertura (días)'];
+  const invData=[invHeader];
+  prods.forEach((p,i)=>{
+    const s=stk[p.id]??0;
+    const exp=parseFloat(p.expected_monthly)||0;
+    const r=exp>0?s/exp:1;
+    const st=r<=0.2?'Crítico':r<=0.5?'Bajo':'OK';
+    const dias=exp>0?Math.round((s/exp)*30):'-';
+    invData.push([i+1, p.name, p.unit||'', s, exp, st, dias]);
+  });
+  const wsInv=XLSX.utils.aoa_to_sheet(invData);
+  wsInv['!cols']=[{wch:5},{wch:52},{wch:10},{wch:14},{wch:16},{wch:10},{wch:16}];
+  wsInv['!freeze']={xSplit:0,ySplit:1};
+  XLSX.utils.book_append_sheet(wb,wsInv,'Stock Actual');
+
+  // ── HOJA 3: Movimientos del mes ──────────────────────────────────
+  try{
+    const y=expYear, m=expMonth;
+    const firstDay=`${y}-${String(m+1).padStart(2,'0')}-01`;
+    const lastDay=new Date(y,m+1,0);
+    const lastDayStr=`${y}-${String(m+1).padStart(2,'0')}-${String(lastDay.getDate()).padStart(2,'0')}`;
+    const movs=await sGet('movements',
+      `project_id=eq.${encodeURIComponent(AP)}&date=gte.${firstDay}&date=lte.${lastDayStr}&order=date,created_at`);
+
+    const DIAS=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+    const movHeader=['N°','Fecha','Día','Tipo','Producto','Unidad','Cantidad','Responsable'];
+    const movData=[movHeader];
+    let entradas=0, salidas=0;
+    (movs||[]).forEach((m2,i)=>{
+      const p=prods.find(x=>x.id===m2.product_id);
+      const d=new Date(m2.date+'T12:00:00');
+      const tipo=m2.type==='entrada'?'Entrada':'Salida';
+      const qty=parseFloat(m2.qty);
+      if(m2.type==='entrada')entradas+=qty; else salidas+=qty;
+      movData.push([i+1, m2.date, DIAS[d.getDay()], tipo, p?.name||m2.product_id, p?.unit||'', qty, m2.responsable||'']);
+    });
+    // Totales
+    movData.push([]);
+    movData.push(['','','','','','Total Entradas:', entradas,'']);
+    movData.push(['','','','','','Total Salidas:', salidas,'']);
+    movData.push(['','','','','','Total Movimientos:', (movs||[]).length,'']);
+
+    const wsMov=XLSX.utils.aoa_to_sheet(movData);
+    wsMov['!cols']=[{wch:5},{wch:12},{wch:6},{wch:10},{wch:52},{wch:8},{wch:10},{wch:20}];
+    wsMov['!freeze']={xSplit:0,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,wsMov,`Movimientos ${mesNombre}`);
+  }catch(e){console.error(e)}
+
+  // ── HOJA 4: Pedido Sugerido ──────────────────────────────────────
+  try{
+    const y=expYear, m=expMonth;
+    const firstDay=`${y}-${String(m+1).padStart(2,'0')}-01`;
+    const lastDay=new Date(y,m+1,0);
+    const lastDayStr=`${y}-${String(m+1).padStart(2,'0')}-${String(lastDay.getDate()).padStart(2,'0')}`;
+    const movs=await sGet('movements',
+      `project_id=eq.${encodeURIComponent(AP)}&type=eq.salida&date=gte.${firstDay}&date=lte.${lastDayStr}`);
+    const diasMes=lastDay.getDate();
+    const diasTranscurridos=m===CM&&y===CY?CD:diasMes;
+
+    const pedHeader=['N°','Producto','Unidad','Stock Actual','Consumido en el Mes','Consumo Proyectado','Stock de Seguridad (20%)','Pedido Sugerido'];
+    const pedData=[pedHeader];
+    let hayPedido=false;
+    prods.forEach((p,i)=>{
+      const sal=(movs||[]).filter(mv=>mv.product_id===p.id).reduce((a,mv)=>a+parseFloat(mv.qty),0);
+      const proj2=diasTranscurridos>=7?Math.ceil(sal*30/diasTranscurridos):parseFloat(p.expected_monthly)||0;
+      const tgt=Math.max(proj2,parseFloat(p.expected_monthly)||0);
+      const cur=stk[p.id]??0;
+      const seg=Math.ceil(tgt*0.2);
+      const sug=Math.max(0,Math.ceil(tgt)+seg-cur);
+      if(sug>0){hayPedido=true;pedData.push([i+1,p.name,p.unit||'',cur,sal,proj2,seg,sug]);}
+    });
+    if(!hayPedido)pedData.push(['','Stock suficiente para todos los productos','','','','','','']);
+
+    const nextM=MONTHS[(m+1)%12];
+    const nextY=(m+1)>11?y+1:y;
+    const wsPed=XLSX.utils.aoa_to_sheet(pedData);
+    wsPed['!cols']=[{wch:5},{wch:52},{wch:8},{wch:14},{wch:18},{wch:20},{wch:22},{wch:16}];
+    wsPed['!freeze']={xSplit:0,ySplit:1};
+    XLSX.utils.book_append_sheet(wb,wsPed,`Pedido ${nextM} ${nextY}`);
+  }catch(e){console.error(e)}
+
+  XLSX.writeFile(wb,`Inventario_${projName}_${mesNombre}_${expYear}.xlsx`);
+}
 function printView(){const proj=projects.find(p=>p.id===AP);const title=`${proj?.name||AP} — ${AT==='ped'?'Pedido Sugerido':'Inventario'} — ${MONTHS[CM]} ${CY}`;if(AT!=='inv'&&AT!=='ped'){goTab('inv');setTimeout(()=>{const el=document.getElementById('print-inv-title');if(el)el.textContent=title;window.print()},300)}else{const el=document.getElementById(AT==='ped'?'print-ped-title':'print-inv-title');if(el)el.textContent=title;window.print()}}
 function goTab(t){document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.t===t));AT=t;showTab(t)} function showFbk(msg,type){const el=document.getElementById('fbk');el.textContent=msg;el.className='feedback '+type;el.style.display='block';setTimeout(()=>el.style.display='none',4500)} function hideFbk(){const el=document.getElementById('fbk');if(el)el.style.display='none'}
 </script>
