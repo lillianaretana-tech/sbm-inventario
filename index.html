@@ -36,11 +36,9 @@ const DEFAULT_CODES={
  'WPlaces':'WPLACES2026'
 };
 const LS_CODES_KEY='sbm_project_access_codes_v2';
-const LS_VIEWER_KEY='sbm_viewer_codes_v1';
-function getViewerCodes(){try{return JSON.parse(localStorage.getItem(LS_VIEWER_KEY)||'{}')}catch(e){return {}}}
-function saveViewerCodes(map){localStorage.setItem(LS_VIEWER_KEY,JSON.stringify(map||{}))}
-function getViewerCode(pid){return (getViewerCodes()[pid]||'').toUpperCase()}
-function setViewerCode(pid,code){const m=getViewerCodes();m[pid]=(code||'').trim().toUpperCase();saveViewerCodes(m)}
+// viewer_code se guarda en Supabase columna projects.viewer_code
+function getViewerCode(pid){const p=projects.find(x=>x.id===pid);return (p&&p.viewer_code||'').toString().trim().toUpperCase()}
+async function setViewerCode(pid,code){const c=(code||'').trim().toUpperCase();try{await sPatch('projects','id=eq.'+encodeURIComponent(pid),{viewer_code:c});const p=projects.find(x=>x.id===pid);if(p)p.viewer_code=c;}catch(e){console.error('Error guardando viewer_code',e)}}
 function slugCode(name){return norm(name).replace(/[^a-z0-9]+/g,'').toUpperCase()+'2026'}
 function getSavedCodes(){try{return JSON.parse(localStorage.getItem(LS_CODES_KEY)||'{}')}catch(e){return {}}}
 function saveCodes(map){localStorage.setItem(LS_CODES_KEY,JSON.stringify(map||{}))}
@@ -55,7 +53,15 @@ async function login(){
   if(!code){alert('Ingresá el código de acceso');return}
   try{await loadProjects()}catch(e){alert('No se pudo conectar con Supabase: '+e.message);return}
   if(code===ADMIN_CODE){session={role:'admin',name:'Admin',projectId:null};}
-  else{const p=projects.find(x=>getProjectCode(x)===code);if(p){session={role:'user',name:p.name,projectId:p.id};}else{const vc=getViewerCodes();const vpid=Object.keys(vc).find(k=>vc[k]===code);if(vpid){const vp=projects.find(x=>x.id===vpid);if(vp)session={role:'viewer',name:vp.name,projectId:vpid};}};if(!session){alert('Código incorrecto');return}}
+  else{
+    const p=projects.find(x=>getProjectCode(x)===code);
+    if(p){session={role:'user',name:p.name,projectId:p.id};}
+    else{
+      const vp=projects.find(x=>x.viewer_code&&x.viewer_code.toString().trim().toUpperCase()===code);
+      if(vp)session={role:'viewer',name:vp.name,projectId:vp.id};
+    }
+    if(!session){alert('Código incorrecto');return}
+  }
   document.body.classList.toggle('admin',session.role==='admin');
   document.body.classList.toggle('viewer',session.role==='viewer');
   document.querySelectorAll('.admin-tab').forEach(b=>b.style.display=session.role==='admin'?'inline-block':'none');
@@ -169,7 +175,7 @@ async function updateProject(id){
 }
 async function deleteProjectFromHome(id){return deleteProject(id)}
 function renderProjectManager(){return `<div class="adj-panel"><h3 style="margin-bottom:8px">🏢 Proyectos</h3><p class="muted" style="margin-bottom:8px">También podés administrarlos desde el dashboard principal.</p><div class="form-grid"><div class="field"><label>Nuevo proyecto</label><input id="new-proj-name" placeholder="Ej. Abbott"></div><div class="field"><label>Código acceso</label><input id="new-proj-code" placeholder="Ej. ABBOTT2026"></div><div class="field"><label>Color</label><input id="new-proj-color" type="color" value="#2563eb"></div></div><div class="btn-row"><button class="btn btn-primary" onclick="addProject()">+ Agregar proyecto</button></div><div class="card" style="margin-top:12px;overflow-x:auto"><table><thead><tr><th>Proyecto</th><th>Código acceso</th><th>Código cliente</th><th>Color</th><th>ID</th><th class="tc">Acción</th></tr></thead><tbody>${projects.map(p=>`<tr><td><input class="input-full" id="cfg-edit-name-${p.id}" value="${p.name}"></td><td><input class="input-full" id="cfg-edit-code-${p.id}" value="${getProjectCode(p)}"></td><td><input class="input-full" id="view-code-${p.id}" placeholder="Ej: MCK-CLIENTE" value="${getViewerCode(p.id)}"></td><td><input class="input-full" id="cfg-edit-color-${p.id}" type="color" value="${p.color||'#2563eb'}"></td><td class="muted">${p.id}</td><td class="tc"><button class="btn btn-sm" onclick="updateProjectFromCfg('${p.id}')">Guardar</button> <button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}')">Eliminar</button></td></tr>`).join('')}</tbody></table></div></div>`}
-async function updateProjectFromCfg(id){const name=document.getElementById('cfg-edit-name-'+id).value.trim(), color=document.getElementById('cfg-edit-color-'+id).value||'#2563eb', code=document.getElementById('cfg-edit-code-'+id).value.trim().toUpperCase(), vcode=(document.getElementById('view-code-'+id)||{value:''}).value.trim().toUpperCase();if(!name){showFbk('⚠️ El nombre no puede quedar vacío','warn');return}if(!code){showFbk('⚠️ El código no puede quedar vacío','warn');return}try{await sPatch('projects','id=eq.'+encodeURIComponent(id),{name,color});const p=projects.find(x=>x.id===id);if(p){p.name=name;p.color=color}setProjectCode(id,code);if(vcode)setViewerCode(id,vcode);renderCfg();renderHome();showFbk('✅ Proyecto y códigos actualizados','ok')}catch(e){showFbk('⚠️ Error actualizando proyecto: '+e.message,'warn')}}
+async function updateProjectFromCfg(id){const name=document.getElementById('cfg-edit-name-'+id).value.trim(), color=document.getElementById('cfg-edit-color-'+id).value||'#2563eb', code=document.getElementById('cfg-edit-code-'+id).value.trim().toUpperCase(), vcode=(document.getElementById('view-code-'+id)||{value:''}).value.trim().toUpperCase();if(!name){showFbk('⚠️ El nombre no puede quedar vacío','warn');return}if(!code){showFbk('⚠️ El código no puede quedar vacío','warn');return}try{await sPatch('projects','id=eq.'+encodeURIComponent(id),{name,color});const p=projects.find(x=>x.id===id);if(p){p.name=name;p.color=color}setProjectCode(id,code);if(vcode)await setViewerCode(id,vcode);renderCfg();renderHome();showFbk('✅ Proyecto y códigos actualizados','ok')}catch(e){showFbk('⚠️ Error actualizando proyecto: '+e.message,'warn')}}
 async function addProject(){const name=document.getElementById('new-proj-name').value.trim(), color=document.getElementById('new-proj-color').value||'#2563eb', code=(document.getElementById('new-proj-code').value.trim()||slugCode(name)).toUpperCase();if(!name){showFbk('⚠️ Escribí el nombre del proyecto','warn');return}const id=norm(name).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')+'-'+Date.now().toString().slice(-4);try{const row={id,name,color};const res=await sPost('projects',row);projects.push(res?.[0]||row);setProjectCode(id,code);projects.sort((a,b)=>a.name.localeCompare(b.name));showFbk('✅ Proyecto agregado con código de acceso','ok');renderCfg();renderHome()}catch(e){showFbk('⚠️ Error creando proyecto: '+e.message,'warn')}}
 async function deleteProject(id){const p=projects.find(x=>x.id===id);if(!confirm(`Eliminar proyecto ${p?.name||id}? Esto también eliminará sus productos, stock y movimientos.`))return;try{await sDel('movements','project_id=eq.'+encodeURIComponent(id));await sDel('stock','project_id=eq.'+encodeURIComponent(id));await sDel('products','project_id=eq.'+encodeURIComponent(id));await sDel('projects','id=eq.'+encodeURIComponent(id));projects=projects.filter(x=>x.id!==id);const saved=getSavedCodes();delete saved[id];saveCodes(saved);if(AP===id){document.getElementById('back-btn').click()}else{try{renderCfg()}catch(_){}}renderHome();showFbk('✅ Proyecto eliminado','ok')}catch(e){showFbk('⚠️ Error eliminando: '+e.message,'warn')}}
 async function updateProduct(id){
